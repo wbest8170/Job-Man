@@ -694,10 +694,29 @@
    SUPABASE CONFIG — fill these in from your Supabase project
    (Dashboard -> Project Settings -> API)
    ================================================================ */
-const SUPABASE_URL = "YOUR_SUPABASE_URL";        // e.g. https://abcdefgh.supabase.co
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const CONFIGURED = !SUPABASE_URL.includes("YOUR_SUPABASE") && !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE");
+const SUPABASE_URL = "https://hezhvpgyzokuyzvpyvqz.supabase.co";        // e.g. https://abcdefgh.supabase.co
+ const SUPABASE_ANON_KEY = "sb_publishable_1Y-2VXEtt4SfFOJzOSZ17w_-kvrfU7c";
+
+/* Build the client defensively — a bad URL/key or a blocked CDN script
+   must never take down the whole page (that would silently break every
+   button, including "Create account"). If setup fails, CONFIGURED stays
+   false and the app shows a clear message instead of doing nothing. */
+let sb = null;
+let CONFIGURED = false;
+try{
+  const looksSet = SUPABASE_URL && SUPABASE_ANON_KEY
+    && !SUPABASE_URL.includes("YOUR_SUPABASE") && !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE");
+  if(!window.supabase){
+    console.error("Supabase library didn't load — check your internet connection or whether something is blocking cdn.jsdelivr.net.");
+  } else if(looksSet){
+    sb = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim());
+    CONFIGURED = true;
+  }
+}catch(err){
+  console.error("Supabase client failed to initialize — check SUPABASE_URL and SUPABASE_ANON_KEY for typos.", err);
+  sb = null;
+  CONFIGURED = false;
+}
 
 /* ================= Local UI helpers ================= */
 function toast(msg){
@@ -874,6 +893,7 @@ document.getElementById("signupBtn").addEventListener("click", async ()=>{
 });
 
 document.getElementById("forgotBtn").addEventListener("click", async ()=>{
+  if(!CONFIGURED){ showAuthError("This install isn't connected to a database yet — see README.txt."); return; }
   const email = document.getElementById("forgotEmail").value.trim();
   if(!email){ showAuthError("Enter the email on your account."); return; }
   await sb.auth.resetPasswordForEmail(email);
@@ -937,13 +957,15 @@ function exitApp(){
   document.getElementById("loginUser").focus();
 }
 
-sb.auth.onAuthStateChange((event, session)=>{
-  if(event==="SIGNED_IN" || event==="TOKEN_REFRESHED"){
-    if(!document.body.classList.contains("authed")) enterApp();
-  } else if(event==="SIGNED_OUT"){
-    exitApp();
-  }
-});
+if(sb){
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event==="SIGNED_IN" || event==="TOKEN_REFRESHED"){
+      if(!document.body.classList.contains("authed")) enterApp();
+    } else if(event==="SIGNED_OUT"){
+      exitApp();
+    }
+  });
+}
 
 /* ================= Navigation ================= */
 const views = ["dashboard","customers","jobs","reports","users"];
